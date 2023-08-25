@@ -1,6 +1,8 @@
 from django.core.management.base import BaseCommand, CommandError
 from telebot import TeleBot, types
 from telebot.types import InputMediaPhoto
+from bot.models import Client, Bouquet
+from bot import views
 # from bot.views import get_message
 #import FlowerShop.settings
 #from FlowerShop.settings import TELEGRAM_TOKEN, FLORISTS_CHAT_ID, COURIERS_CHAT_ID
@@ -115,7 +117,12 @@ bot = TeleBot(TELEGRAM_TOKEN)
 @bot.message_handler(commands=['start'])
 def main_menu(message):
     bot.clear_step_handler_by_chat_id(chat_id=message.chat.id)
-    # client = Client.objects.get_or_create(id_tg=message.from_user.id)[0]
+    client = Client.objects.get_or_create(
+        client_id=message.chat.id,
+        defaults={
+            'client_name': message.from_user.username
+        }
+        )
     # client.save()
     # функция, проверяющая, есть ли у клиента с данным id незавершенные заказы, и удаляющая их
     id_tg=message.from_user.id
@@ -124,7 +131,7 @@ def main_menu(message):
                                         callback_data=f'bouquet_params;choose_cause')
     markup.add(button)
     bot.send_message(message.chat.id,
-                     f'Добро пожаловать! Выберите действие: ',
+                     f'Добро пожаловать! {client[0]} Выберите действие: ',
                      reply_markup=markup)
 
 
@@ -327,7 +334,7 @@ def order_menu(call):
 
 
 def set_name(message):
-    pass
+    print(message)
 
 
 
