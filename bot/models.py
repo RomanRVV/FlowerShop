@@ -5,7 +5,8 @@ class Client(models.Model):
     client_id = models.CharField(max_length=100,
                                  null=True,
                                  verbose_name='ID клиента')
-    client_name = models.CharField(max_length=100, null=True,
+    client_name = models.CharField(max_length=100, 
+                                   null=True, blank=True,
                                    verbose_name='Имя клиента')
 
     def __str__(self):
