@@ -26,6 +26,14 @@ class Bouquet(models.Model):
     def __str__(self):
         return self.name
 
+    def get_message(self):
+        message = f'Букет \"{self.name}\"\n' \
+                  f'Цена: {self.price} руб.\n' \
+                  f'Описание: {self.description}'
+        # for flower in bouquet['flowers']:
+        #     message += f'\n- {flower}'
+        return message
+
 
 class Order(models.Model):
     client = models.ForeignKey(on_delete=models.CASCADE,
