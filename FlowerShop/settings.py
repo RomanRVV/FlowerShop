@@ -35,6 +35,10 @@ TELEGRAM_TOKEN = env("TELEGRAM_TOKEN")
 
 BOT_LINK = env("BOT_LINK")
 
+COURIERS_CHAT_ID = env("COURIERS_CHAT_ID")
+
+FLORISTS_CHAT_ID = env("FLORISTS_CHAT_ID")
+
 
 # Application definition
 
