@@ -28,3 +28,8 @@ class EventAdmin(admin.ModelAdmin):
 class ClientAdmin(admin.ModelAdmin):
     list_display = ('client_id',
                     'client_name')
+
+
+@admin.register(Flowers)
+class FlowersAdmin(admin.ModelAdmin):
+    list_display = ['name']
