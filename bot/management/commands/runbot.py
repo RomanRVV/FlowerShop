@@ -1,13 +1,17 @@
 from django.core.management.base import BaseCommand, CommandError
 from telebot import TeleBot, types, apihelper
 from bot.models import *
-from telebot.types import InputMediaPhoto
+from telebot.types import InputMediaPhoto, LabeledPrice, PreCheckoutQuery
 from bot.views import (make_price_list, get_new_bouquet_num, get_description,
                        get_florist_message, get_courier_message)
 from more_itertools import chunked
 from datetime import datetime, timedelta
 #import FlowerShop.settings
-from FlowerShop.settings import TELEGRAM_TOKEN, FLORISTS_CHAT_ID, COURIERS_CHAT_ID, STATIC_ROOT
+from FlowerShop.settings import (TELEGRAM_TOKEN,
+                                 PAYMENT_TOKEN,
+                                 FLORISTS_CHAT_ID,
+                                 COURIERS_CHAT_ID,
+                                 STATIC_ROOT)
 import os
 
 
@@ -322,6 +326,8 @@ def order_menu(call):
     if callback_data[1] == 'create_order':
         accept_order(client_chat_id)
         offer_payment_types(call.message)
+    if callback_data[1] == 'offer_payment_types':
+        offer_payment_types(call.message)
     if callback_data[1] == 'pay_order':
         pay_order(call.message)
     if callback_data[1] == 'courier_notified':
@@ -436,11 +442,43 @@ def offer_payment_types(message):
                      'Желаете оплатить сейчас или при получении?', 
                      reply_markup=markup)
 
-
+#callback_data=f'order;courier_notified;True'
 def pay_order(message):
+    bouquet = ORDERS_IN_PROCESS[message.chat.id]['chosen_bouquet']
+    markup = types.InlineKeyboardMarkup()
+    buttons = [types.InlineKeyboardButton(text=f'Оплатить {bouquet.price} руб.', pay=True),
+               types.InlineKeyboardButton(text='Отмена',
+                                          callback_data=f'order;offer_payment_types')]
+    markup.add(*buttons)
 
-    # сохранить информацию об оплате в БД
-    pass
+    bot.send_invoice(chat_id=message.chat.id,
+                     title='Букет',
+                     description=f'Букет {bouquet.name}',
+                     provider_token=PAYMENT_TOKEN,
+                     currency='RUB',
+                     #photo_url=bouquet.image,
+                     prices=[LabeledPrice(label='Букет {bouquet}',
+                                          amount=int(bouquet.price * 100))],
+                     invoice_payload='test-invoice-payload',
+                     reply_markup=markup)
+
+
+@bot.pre_checkout_query_handler(func=lambda query: True) 
+def pre_checkout_query(pre_checkout_q: PreCheckoutQuery):
+    bot.answer_pre_checkout_query(
+        pre_checkout_q.id, ok=True, 
+        error_message="Оплата не прошла. Попробуйте, пожалуйста, еще раз."
+    )
+
+
+@bot.message_handler(content_types=['successful_payment'])
+def successful_payment(message):
+    order_id = ORDERS_IN_PROCESS[message.chat.id]['order_id']
+    order = Order.objects.get(id=order_id)
+    order.payment = True
+    order.save()
+    bot.send_message(message.chat.id, 'Ваш заказ был успешно оплачен.')
+    courier_notified(message, True)
 
 
 def courier_notified(message, is_paid):

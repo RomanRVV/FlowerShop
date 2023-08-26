@@ -54,7 +54,7 @@ def get_florist_message(message, order: dict):
     client_chat_id = message.chat.id
     сlient = Client.objects.get(client_id=client_chat_id)
 
-    msg = '💐💐💐 Сообщение для флориста 💐💐💐\n\n' \
+    msg = '💐 Сообщение для флориста 💐\n\n' \
           f'Клиент № {сlient.id}\n' \
           f'ТГ ссылка: tg://user?id={client_chat_id}\n' \
           f'Телефон: {message.text}\n' \
@@ -68,7 +68,7 @@ def get_courier_message(message, order: dict, is_paid):
     сlient = Client.objects.get(client_id=message.chat.id)
     bouquet = order['chosen_bouquet']
 
-    msg = '🏃🏃🏃 Сообщение для курьера 🏃🏃🏃\n\n' \
+    msg = '🏃‍♂️ Сообщение для курьера 🏃‍♂️\n\n' \
           f'Клиент № {сlient.id}: {сlient}\n' \
           f'ТГ ссылка: tg://user?id={сlient.client_id}\n' \
           f'Заказ № {order["order_id"]}\n' \
