@@ -30,12 +30,17 @@ def get_description(order: dict, client_id):
     return message
 
 
-def make_price_list():
-    max_price = Bouquet.objects.aggregate(Max("price"))['price__max']
-    min_price = Bouquet.objects.aggregate(Min("price"))['price__min']
-    approximate_prices = [
-        price for price in range(roundup(min_price), max_price, 1000)
-    ]
+def make_price_list(bouquets):
+    max_price = bouquets.aggregate(Max("price"))['price__max']
+    min_price = bouquets.aggregate(Min("price"))['price__min']
+    # approximate_prices = [
+    #     price for price in range(roundup(min_price), max_price, 1000)
+    # ]
+    approximate_prices = list()
+    for price in range(roundup(min_price), max_price, 1000):
+        if bouquets.filter(price__lte=price + 500,
+                           price__gte=price - 500):
+            approximate_prices.append(price)
     return approximate_prices
 
 
@@ -59,7 +64,7 @@ def get_florist_message(message, order: dict):
           f'ТГ ссылка: tg://user?id={client_chat_id}\n' \
           f'Телефон: {message.text}\n' \
           'Предпочтения:\n' \
-          f'   повод: {order["cause_id"]}\n' \
+          f'   повод: {order["cause"]}\n' \
           f'   цена: ~ {order["approx_price"]} руб.'
     return msg
 

@@ -15,9 +15,6 @@ from FlowerShop.settings import (TELEGRAM_TOKEN,
 import os
 
 
-# TELEGRAM_TOKEN = '6078909031:AAGN2OPnKOQfF_rokd3Sjvu5RmCnBEC-4dQ'
-# FLORISTS_CHAT_ID = -952806675
-# COURIERS_CHAT_ID = -952806675
 ORDERS_IN_PROCESS = {}
 '''
 ORDERS_IN_PROCESS = {
@@ -35,84 +32,6 @@ ORDERS_IN_PROCESS = {
 }
 
 '''
-
-
-CAUSES = [
-    'День Рождения',
-    'Свадьба',
-    'В школу',
-    'Другой повод'
-]
-PRICES = [
-    1000,
-    2000,
-    3000,
-    4000,
-    5000
-]
-BOUQUETS = [
-    {
-        'id': 1,
-        'name': 'букет 1',
-        'price': 2600,
-        'image': 'media\\bouquets\\bouquet_1',
-        'description': 'описание 1',
-        'flowers': [
-            'Роза',
-            'Гвоздика',
-            'Рускус'
-            ]
-    },
-    {
-        'id': 4,
-        'name': 'букет 2',
-        'price': 3100,
-        'image': 'media\\bouquets\\bouquet_2',
-        'description': 'описание 4',
-        'flowers': [
-            'Аспидистра',
-            'Краспендия',
-            'Хризантема',
-            'Гвоздика'
-        ]
-    },
-    {
-        'id': 8,
-        'name': 'букет 3',
-        'price': 2900,
-        'image': 'media\\bouquets\\bouquet_3',
-        'description': 'описание 8',
-        'flowers': [
-            'Роза кустовая',
-            'Роза',
-            'Краспендия'
-        ]
-    },
-    {
-        'id': 11,
-        'name': 'букет 4',
-        'price': 3400,
-        'image': 'media\\bouquets\\bouquet_4',
-        'description': 'описание 11',
-        'flowers': [
-            'Гербера',
-            'Питоспорум',
-            'Статица'
-        ]
-    },
-    {
-        'id': 12,
-        'name': 'букет 5',
-        'price': 3300,
-        'image': 'media\\bouquets\\bouquet_5',
-        'description': 'описание 12',
-        'flowers': [
-            'Питоспорум',
-            'Аспидистра',
-            'Тюльпан'
-        ]
-    }
-]
 
 
 bot = TeleBot(TELEGRAM_TOKEN)
@@ -144,7 +63,6 @@ def main_menu(message):
 )
 def bouquet_params_menu(call):
     callback_data = call.data.split(';')
-    # client_id = call.message.from_user.id - выдаеь id бота
     client_chat_id = call.message.chat.id
 
     if callback_data[1] == 'main_menu':
@@ -154,9 +72,9 @@ def bouquet_params_menu(call):
     if callback_data[1] == 'choose_price':
         ORDERS_IN_PROCESS.update([(
             client_chat_id,
-            {'cause_id': callback_data[2]}
+            {'cause': callback_data[2]}
         )])
-        choose_price(call.message)
+        choose_price(call.message, callback_data[2])
     if callback_data[1] == 'second_menu':
         if not ORDERS_IN_PROCESS[client_chat_id].get('approx_price'):
             ORDERS_IN_PROCESS[client_chat_id]['approx_price'] = int(callback_data[2])
@@ -166,9 +84,6 @@ def bouquet_params_menu(call):
 
 
 def choose_cause(message):
-    # запрос к бд+
-    # фильтр к таблице букетов на уникальные значения поводов+
-
     causes = Event.objects.filter(bouquets_for_event__in=Bouquet.objects.all()).distinct()
     markup = types.InlineKeyboardMarkup()
     buttons = [
@@ -186,10 +101,9 @@ def choose_cause(message):
                      reply_markup=markup)
 
 
-def choose_price(message):
-    # запрос к бд+
-    # функция, возвращает лист приблизительных цен с шагом по 1000+
-    prices = make_price_list()
+def choose_price(message, cause):
+    cause_bouquets = Bouquet.objects.filter(events__name=cause)
+    prices = make_price_list(cause_bouquets)
 
     markup = types.InlineKeyboardMarkup()
     buttons = [
@@ -214,10 +128,10 @@ def second_menu(message, client_chat_id):
                                           callback_data=f'bouquet_params;notify_florist')]
     markup.add(*buttons)
 
-    cause_id = ORDERS_IN_PROCESS[client_chat_id]['cause_id']
+    cause = ORDERS_IN_PROCESS[client_chat_id]['cause']
     approx_price = ORDERS_IN_PROCESS[client_chat_id]['approx_price']
     bot.send_message(message.chat.id,
-                     f'Вы выбрали:\n повод: {cause_id}\n цена: {approx_price}\n'
+                     f'Вы выбрали:\n повод: {cause}\n цена: {approx_price}\n'
                      'Предпочитаете посмотреть готовые букеты или обратиться к флористу?',
                      reply_markup=markup)
 
@@ -264,7 +178,7 @@ def bouquet_presentation_menu(call):
     
     if is_first_call:
         bouquet_set['bouquets'] = Bouquet.objects.filter(
-            events__name=bouquet_set['cause_id'],
+            events__name=bouquet_set['cause'],
             price__lte=int(bouquet_set['approx_price']) + 500,
             price__gte=int(bouquet_set['approx_price']) - 500,
             in_stock=True
@@ -282,28 +196,33 @@ def bouquet_presentation_menu(call):
 
     bouquet = bouquet_set['bouquets'][new_num]
     markup = types.InlineKeyboardMarkup()
-    main_buttons = [types.InlineKeyboardButton(text='◀ Предыдущий',
+    select_button = types.InlineKeyboardButton(text='Выбрать букет',
+                                          callback_data=f'order;start_order;{new_num}')
+    if bouquet_set['bouquets'].count() > 1:
+        main_buttons = [types.InlineKeyboardButton(text='◀ Предыдущий',
                                           callback_data=f'bouquet_presentation_menu;{new_num};prev'),
-                    types.InlineKeyboardButton(text='Выбрать букет',
-                                          callback_data=f'order;start_order;{new_num}'),
-                    types.InlineKeyboardButton(text='Следующий ▶',
+                        select_button,
+                        types.InlineKeyboardButton(text='Следующий ▶',
                                           callback_data=f'bouquet_presentation_menu;{new_num};next')]
+        markup.add(*main_buttons)
+    else:
+        markup.add(select_button)
+
     button = types.InlineKeyboardButton(text='Связаться с флористом',
                                         callback_data=f'bouquet_params;notify_florist')
-    markup.add(*main_buttons)
     markup.add(button)
 
-    if is_first_call:
-        bot.send_photo(call.message.chat.id,
-                       photo=bouquet.image,
-                       caption=bouquet.get_message(),
-                       reply_markup=markup)
-    else:
+    try:
         image = InputMediaPhoto(media=open(f'{bouquet.image}', 'rb'), caption=bouquet.get_message())
         bot.edit_message_media(media=image,
                                chat_id=call.message.chat.id,
                                message_id=call.message.id,
                                reply_markup=markup)
+    except apihelper.ApiTelegramException:
+        bot.send_photo(call.message.chat.id,
+                       photo=bouquet.image,
+                       caption=bouquet.get_message(),
+                       reply_markup=markup)
 
 
 
@@ -352,8 +271,6 @@ def ask_name(message):
 
 
 def set_name(message):
-    # client = Client.objects.get(client_id=message.chat.id)
-    # client.client_name = message.text
     client = Client.objects.update_or_create(client_id=message.chat.id,
                                              defaults={'client_name': message.text})[0]  
     client.save()
@@ -442,7 +359,7 @@ def offer_payment_types(message):
                      'Желаете оплатить сейчас или при получении?', 
                      reply_markup=markup)
 
-#callback_data=f'order;courier_notified;True'
+
 def pay_order(message):
     bouquet = ORDERS_IN_PROCESS[message.chat.id]['chosen_bouquet']
     markup = types.InlineKeyboardMarkup()
