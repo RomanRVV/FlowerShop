@@ -8,6 +8,8 @@ class Client(models.Model):
     client_name = models.CharField(max_length=100, 
                                    null=True, blank=True,
                                    verbose_name='Имя клиента')
+    client_phone = models.CharField(max_length=20, null=True,
+                                    verbose_name='Телефон')
 
     def __str__(self):
         return self.client_name
@@ -72,12 +74,6 @@ class Order(models.Model):
                                to='bot.Client',
                                related_name='orders',
                                verbose_name='Клиент')
-    user_id = models.CharField(max_length=100, null=True,
-                               verbose_name='Id пользователя')
-    user_name = models.CharField(max_length=100, null=True,
-                                 verbose_name='Имя пользователя')
-    user_phone = models.CharField(max_length=20, null=True,
-                                  verbose_name='Телефон')
     delivery_date = models.DateField(null=True, verbose_name='Дата доставки')
     delivery_time = models.TimeField(null=True, verbose_name='Время доставки')
     delivery_address = models.CharField(max_length=200, null=True,
@@ -85,6 +81,7 @@ class Order(models.Model):
     bouquet = models.ForeignKey(null=True,
                                 on_delete=models.SET_NULL,
                                 to='bot.Bouquet', verbose_name='Букет')
+    payment = models.BooleanField(default=False, verbose_name='Оплата')
 
     class Meta:
         verbose_name = 'Заказ'

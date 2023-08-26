@@ -1,7 +1,6 @@
 from django.core.management.base import BaseCommand, CommandError
 from telebot import TeleBot, types, apihelper
 from bot.models import *
-from pprint import pprint
 from telebot.types import InputMediaPhoto
 from bot.views import (make_price_list, get_new_bouquet_num, get_description,
                        get_florist_message, get_courier_message)
@@ -120,6 +119,12 @@ def main_menu(message):
     bot.clear_step_handler_by_chat_id(chat_id=message.chat.id)
     client = Client.objects.get_or_create(client_id=message.from_user.id)[0]  
     client.save()
+    # client = Client.objects.get_or_create(
+    #     client_id=message.chat.id,
+    #     defaults={
+    #         'client_name': message.from_user.username
+    #     }
+    # )
     # функция, проверяющая, есть ли у клиента с данным id незавершенные заказы, и удаляющая их
     markup = types.InlineKeyboardMarkup()
     button = types.InlineKeyboardButton(text='Заказать букет',
