@@ -3,11 +3,13 @@ from telebot import TeleBot, types, apihelper
 from bot.models import *
 from pprint import pprint
 from telebot.types import InputMediaPhoto
-from bot.views import make_price_list, get_new_bouquet_num, get_description
+from bot.views import (make_price_list, get_new_bouquet_num, get_description,
+                       get_florist_message, get_courier_message)
 from more_itertools import chunked
 from datetime import datetime, timedelta
 #import FlowerShop.settings
-from FlowerShop.settings import TELEGRAM_TOKEN, FLORISTS_CHAT_ID, COURIERS_CHAT_ID
+from FlowerShop.settings import TELEGRAM_TOKEN, FLORISTS_CHAT_ID, COURIERS_CHAT_ID, STATIC_ROOT
+import os
 
 
 # TELEGRAM_TOKEN = '6078909031:AAGN2OPnKOQfF_rokd3Sjvu5RmCnBEC-4dQ'
@@ -25,6 +27,7 @@ ORDERS_IN_PROCESS = {
     'address': str,
     'delivery_date': date,
     'delivery_time': time,
+    'order_id': int,
   }
 }
 
@@ -221,23 +224,10 @@ def notify_florist(message):
     bot.register_next_step_handler(msg, florist_notified)
 
 
-def get_florist_message(message):
-    client_chat_id = message.chat.id
-    cause_id = ORDERS_IN_PROCESS[client_chat_id]['cause_id']
-    approx_price = ORDERS_IN_PROCESS[client_chat_id]['approx_price']
-    msg = 'Сообщение для флориста: \n\n' \
-          f'Клиент № client.id\n' \
-          f'ТГ ссылка: tg://user?id={message.chat.id}\n' \
-          f'Телефон: {message.text}\n' \
-          f'Предпочтения:\n  повод: {cause_id}\n  цена: ~ {approx_price} руб.'
-    return msg
-
-
 def florist_notified(message):
-    # client.id заменить на id клиента из БД
     # сделать проверку телефона как в задании про риелторов?
     # если делать, то сделать функцию для некорректно введенного номера
-    msg = get_florist_message(message)
+    msg = get_florist_message(message, ORDERS_IN_PROCESS[message.chat.id])
     bot.send_message(FLORISTS_CHAT_ID, msg)
 
     markup = types.InlineKeyboardMarkup()
@@ -252,11 +242,6 @@ def florist_notified(message):
                      reply_markup=markup)
 
 
-# def get_new_bouquet_num(last_num: int, direction, max_set_num: int):
-#     if(direction == 'next'):
-#         return last_num + 1 if max_set_num != last_num else 0
-#     else:
-#         return last_num - 1 if last_num != 0 else max_set_num
 
 
 @bot.callback_query_handler(
@@ -269,34 +254,29 @@ def bouquet_presentation_menu(call):
     is_first_call = (len(callback_data) == 1)
     
     if is_first_call:
-        # фильтр к таблице букетов по наличию, cause_id и approx_price(ap-500 < price < ap+500)+
-        # отсортировать по Bouquet.id
         bouquet_set['bouquets'] = Bouquet.objects.filter(
             events__name=bouquet_set['cause_id'],
             price__lte=int(bouquet_set['approx_price']) + 500,
             price__gte=int(bouquet_set['approx_price']) - 500,
             in_stock=True
         ).order_by('id')
-        # bouquet_set['bouquets'] = bouquets
         new_num = 0
         # проверить bouquet_set['bouquets'] на пустоту?
         # если пусто, начать сначала, с функции choose_cause?
     else:
         # проверить bouquet_set['bouquets'] на пустоту?
-        # при QuerySet вместо len(х) использовать х.count()
         new_num = get_new_bouquet_num(
             int(callback_data[1]), 
             callback_data[2],
             bouquet_set['bouquets'].count() - 1
         )
 
-    # bouquet = bouquets[new_num]
     bouquet = bouquet_set['bouquets'][new_num]
     markup = types.InlineKeyboardMarkup()
     main_buttons = [types.InlineKeyboardButton(text='◀ Предыдущий',
                                           callback_data=f'bouquet_presentation_menu;{new_num};prev'),
                     types.InlineKeyboardButton(text='Выбрать букет',
-                                          callback_data=f'order;create_order;{new_num}'),
+                                          callback_data=f'order;start_order;{new_num}'),
                     types.InlineKeyboardButton(text='Следующий ▶',
                                           callback_data=f'bouquet_presentation_menu;{new_num};next')]
     button = types.InlineKeyboardButton(text='Связаться с флористом',
@@ -317,6 +297,8 @@ def bouquet_presentation_menu(call):
                                reply_markup=markup)
 
 
+
+
 @bot.callback_query_handler(
     func=lambda call: call.data.startswith('order')
 )
@@ -324,25 +306,31 @@ def order_menu(call):
     callback_data = call.data.split(';')
     client_chat_id = call.message.chat.id
 
-    if callback_data[1] == 'create_order':
-        create_order(call.message, int(callback_data[2]))
+    if callback_data[1] == 'start_order':
+        start_order(call.message, int(callback_data[2]))
     if callback_data[1] == 'ask_name':
         ask_name(call.message)
     if callback_data[1] == 'set_delivery_date':
         set_delivery_date(call.message, callback_data[2])
     if callback_data[1] == 'set_delivery_time':
         set_delivery_time(call.message, callback_data[2])
+    if callback_data[1] == 'create_order':
+        accept_order(client_chat_id)
+        offer_payment_types(call.message)
     if callback_data[1] == 'pay_order':
         pay_order(call.message)
+    if callback_data[1] == 'courier_notified':
+        is_paid = True if callback_data[2] == 'True' else False
+        courier_notified(call.message, is_paid)
 
 
-def create_order(message, chosen_num):
+def start_order(message, chosen_num):
     client_id = message.chat.id
     bouquet_set = ORDERS_IN_PROCESS.get(client_id)
     chosen_bouquet = bouquet_set['bouquets'][chosen_num]
     ORDERS_IN_PROCESS.update([(
         client_id, 
-        {'bouquet': chosen_bouquet}
+        {'chosen_bouquet': chosen_bouquet}
     )])
     ask_name(message)
 
@@ -407,7 +395,7 @@ def set_delivery_time(message, date_str):
 
     markup = types.InlineKeyboardMarkup()
     buttons = [types.InlineKeyboardButton(text='Подтверждаю',
-                                          callback_data=f'order;pay_order'),
+                                          callback_data=f'order;create_order'),
                types.InlineKeyboardButton(text='Изменить',
                                           callback_data=f'order;ask_name'),
                types.InlineKeyboardButton(text='Отмена',
@@ -418,12 +406,55 @@ def set_delivery_time(message, date_str):
     bot.send_message(client_id, message, reply_markup=markup)
 
 
+def accept_order(client_chat_id):
+    bouquet = ORDERS_IN_PROCESS[client_chat_id]['chosen_bouquet']
+    client = Client.objects.get(client_id=client_chat_id)
+    order = Order.objects.create(
+        bouquet=bouquet, 
+        client=client,
+        delivery_address=ORDERS_IN_PROCESS[client_chat_id]['address'],
+        delivery_date=ORDERS_IN_PROCESS[client_chat_id]['delivery_date'],
+        delivery_time=ORDERS_IN_PROCESS[client_chat_id]['delivery_time']
+    )
+    ORDERS_IN_PROCESS[client_chat_id]['order_id'] = order.id
+
+
+def offer_payment_types(message):
+    markup = types.InlineKeyboardMarkup()
+    buttons = [types.InlineKeyboardButton(text='Оплатить онлайн',
+                                          callback_data=f'order;pay_order'),
+               types.InlineKeyboardButton(text='При получении',
+                                          callback_data=f'order;courier_notified;False')]
+    markup.add(*buttons)
+    bot.send_message(message.chat.id,
+                     'Ваш заказ принят.\n' 
+                     'Желаете оплатить сейчас или при получении?', 
+                     reply_markup=markup)
+
+
 def pay_order(message):
+
+    # сохранить информацию об оплате в БД
     pass
 
 
+def courier_notified(message, is_paid):
+    msg = get_courier_message(message, ORDERS_IN_PROCESS[message.chat.id], is_paid)
+    bot.send_message(COURIERS_CHAT_ID, msg)
 
-# def accept_order(message):
+    markup = types.InlineKeyboardMarkup()
+    button = types.InlineKeyboardButton(text='Главное меню',
+                                        callback_data=f'bouquet_params;main_menu')
+    # добавить сюда кнопку "Мои заказы", если будет такой раздел
+    markup.add(button)
+    filepath = os.path.join(STATIC_ROOT, 'thanks_for_order.jpg')
+    with open(filepath, 'rb') as file:
+        bot.send_photo(message.chat.id,
+                       photo=file,
+                       caption='Спасибо, что выбрали нас)',
+                       reply_markup=markup)
+
+
 
 
 
