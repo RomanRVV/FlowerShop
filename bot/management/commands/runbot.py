@@ -215,9 +215,12 @@ def bouquet_presentation_menu(call):
     else:
         markup.add(select_button)
 
-    button = InlineKeyboardButton(text='Связаться с флористом',
-                                  callback_data=f'bouquet_params;notify_florist')
-    markup.add(button)
+    cancel_button = InlineKeyboardButton(text='Отмена',
+                                         callback_data=f'bouquet_params;second_menu;')
+    florist_button = InlineKeyboardButton(text='Связаться с флористом',
+                                          callback_data=f'bouquet_params;notify_florist')
+    markup.add(*[cancel_button, florist_button])
+    #markup.add(florist_button)
 
     try:
         image = InputMediaPhoto(media=open(f'{bouquet.image}', 'rb'), caption=bouquet.get_message())
@@ -273,7 +276,13 @@ def start_order(message, chosen_num):
 
 
 def ask_name(message):
-    msg = bot.send_message(message.chat.id, 'На кого будет заказ?\nВведите имя')
+    markup = InlineKeyboardMarkup()
+    cancel_button = InlineKeyboardButton(text='Отмена',
+                                         callback_data=f'bouquet_params;second_menu;')
+    markup.add(cancel_button)
+    msg = bot.send_message(message.chat.id, 
+                           'На кого будет заказ?\nВведите имя',
+                           reply_markup=markup)
     bot.register_next_step_handler(msg, set_name)
 
 
@@ -282,7 +291,13 @@ def set_name(message):
                                              defaults={'client_name': message.text})[0]  
     client.save()
 
-    msg = bot.send_message(message.chat.id, 'Введите адрес доставки')
+    markup = InlineKeyboardMarkup()
+    cancel_button = InlineKeyboardButton(text='Отмена',
+                                         callback_data=f'bouquet_params;second_menu;')
+    markup.add(cancel_button)
+    msg = bot.send_message(message.chat.id, 
+                           'Введите адрес доставки',
+                           reply_markup=markup)
     bot.register_next_step_handler(msg, set_address)
 
 
