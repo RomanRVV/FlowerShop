@@ -11,11 +11,8 @@ class BouquetAdmin(admin.ModelAdmin):
 
 @admin.register(Order)
 class OrderAdmin(admin.ModelAdmin):
-    list_display = ('user_name',
-                    'user_phone',
-                    'bouquet')
-    search_fields = ('user_phone',
-                     'bouquet',
+    list_display = ['bouquet']
+    search_fields = ('bouquet',
                      'delivery_date')
 
 
@@ -28,3 +25,8 @@ class EventAdmin(admin.ModelAdmin):
 class ClientAdmin(admin.ModelAdmin):
     list_display = ('client_id',
                     'client_name')
+
+
+@admin.register(Flowers)
+class FlowersAdmin(admin.ModelAdmin):
+    list_display = ['name']
