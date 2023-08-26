@@ -5,7 +5,7 @@ from bot.models import *
 from bot import views
 # from bot.views import get_message
 #import FlowerShop.settings
-#from FlowerShop.settings import TELEGRAM_TOKEN, FLORISTS_CHAT_ID, COURIERS_CHAT_ID
+from FlowerShop.settings import TELEGRAM_TOKEN, FLORISTS_CHAT_ID, COURIERS_CHAT_ID
 
 
 TELEGRAM_TOKEN = '6078909031:AAGN2OPnKOQfF_rokd3Sjvu5RmCnBEC-4dQ'
