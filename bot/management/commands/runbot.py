@@ -1,7 +1,7 @@
 from django.core.management.base import BaseCommand, CommandError
 from telebot import TeleBot, types
 from telebot.types import InputMediaPhoto
-from bot.models import Client, Bouquet
+from bot.models import *
 from bot import views
 # from bot.views import get_message
 #import FlowerShop.settings
