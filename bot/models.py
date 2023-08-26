@@ -49,7 +49,7 @@ class Bouquet(models.Model):
     events = models.ManyToManyField(Event, related_name='bouquets_for_event',
                                     verbose_name='События')
     in_stock = models.BooleanField(default=True, verbose_name='В наличии')
-    flower = models.ManyToManyField(Flowers,
+    flowers = models.ManyToManyField(Flowers,
                                     related_name='bouquets_for_flowers',
                                     verbose_name='Цветок')
 
@@ -64,8 +64,8 @@ class Bouquet(models.Model):
         message = f'Букет \"{self.name}\"\n' \
                   f'Цена: {self.price} руб.\n' \
                   f'Описание: {self.description}'
-        # for flower in bouquet['flowers']:
-        #     message += f'\n- {flower}'
+        for flower in self.flowers.all():
+            message += f'\n- {flower.name}'
         return message
 
 
