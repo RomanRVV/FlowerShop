@@ -1,9 +1,16 @@
 from django.core.management.base import BaseCommand, CommandError
-from telebot import TeleBot, types, apihelper
+from telebot import TeleBot, apihelper
 from bot.models import *
-from telebot.types import InputMediaPhoto, LabeledPrice, PreCheckoutQuery
-from bot.views import (make_price_list, get_new_bouquet_num, get_description,
-                       get_florist_message, get_courier_message)
+from telebot.types import (InlineKeyboardMarkup, 
+                           InlineKeyboardButton, 
+                           InputMediaPhoto, 
+                           LabeledPrice, 
+                           PreCheckoutQuery)
+from bot.views import (make_price_list, 
+                       get_new_bouquet_num, 
+                       get_description,
+                       get_florist_message, 
+                       get_courier_message)
 from more_itertools import chunked
 from datetime import datetime, timedelta
 #import FlowerShop.settings
@@ -49,9 +56,9 @@ def main_menu(message):
     #     }
     # )
     # функция, проверяющая, есть ли у клиента с данным id незавершенные заказы, и удаляющая их
-    markup = types.InlineKeyboardMarkup()
-    button = types.InlineKeyboardButton(text='Заказать букет',
-                                        callback_data=f'bouquet_params;choose_cause')
+    markup = InlineKeyboardMarkup()
+    button = InlineKeyboardButton(text='Заказать букет',
+                                  callback_data=f'bouquet_params;choose_cause')
     markup.add(button)
     bot.send_message(message.chat.id,
                      f'Добро пожаловать! Выберите действие: ',
@@ -85,9 +92,9 @@ def bouquet_params_menu(call):
 
 def choose_cause(message):
     causes = Event.objects.filter(bouquets_for_event__in=Bouquet.objects.all()).distinct()
-    markup = types.InlineKeyboardMarkup()
+    markup = InlineKeyboardMarkup()
     buttons = [
-        types.InlineKeyboardButton(
+        InlineKeyboardButton(
             text=f'{cause}', 
             callback_data=f'bouquet_params;choose_price;{cause.name}'
         ) 
@@ -105,9 +112,9 @@ def choose_price(message, cause):
     cause_bouquets = Bouquet.objects.filter(events__name=cause)
     prices = make_price_list(cause_bouquets)
 
-    markup = types.InlineKeyboardMarkup()
+    markup = InlineKeyboardMarkup()
     buttons = [
-        types.InlineKeyboardButton(
+        InlineKeyboardButton(
             text=f'~{price} руб.', 
             callback_data=f'bouquet_params;second_menu;{price}'
         )
@@ -121,11 +128,11 @@ def choose_price(message, cause):
 
 def second_menu(message, client_chat_id):
 
-    markup = types.InlineKeyboardMarkup()
-    buttons = [types.InlineKeyboardButton(text='Посмотреть букеты',
-                                          callback_data=f'bouquet_presentation_menu'),
-               types.InlineKeyboardButton(text='Связаться с флористом',
-                                          callback_data=f'bouquet_params;notify_florist')]
+    markup = InlineKeyboardMarkup()
+    buttons = [InlineKeyboardButton(text='Посмотреть букеты',
+                                    callback_data=f'bouquet_presentation_menu'),
+               InlineKeyboardButton(text='Связаться с флористом',
+                                    callback_data=f'bouquet_params;notify_florist')]
     markup.add(*buttons)
 
     cause = ORDERS_IN_PROCESS[client_chat_id]['cause']
@@ -137,9 +144,9 @@ def second_menu(message, client_chat_id):
 
 
 def notify_florist(message):
-    markup = types.InlineKeyboardMarkup()
-    button = types.InlineKeyboardButton(text='Отмена',
-                                        callback_data=f'bouquet_params;second_menu;')
+    markup = InlineKeyboardMarkup()
+    button = InlineKeyboardButton(text='Отмена',
+                                  callback_data=f'bouquet_params;second_menu;')
     markup.add(button)
     msg = bot.send_message(message.chat.id,
                            'Укажите номер телефона, и наш флорист перезвонит вам в течение 20 минут',
@@ -195,21 +202,21 @@ def bouquet_presentation_menu(call):
         )
 
     bouquet = bouquet_set['bouquets'][new_num]
-    markup = types.InlineKeyboardMarkup()
-    select_button = types.InlineKeyboardButton(text='Выбрать букет',
-                                          callback_data=f'order;start_order;{new_num}')
+    markup = InlineKeyboardMarkup()
+    select_button = InlineKeyboardButton(text='Выбрать букет',
+                                         callback_data=f'order;start_order;{new_num}')
     if bouquet_set['bouquets'].count() > 1:
-        main_buttons = [types.InlineKeyboardButton(text='◀ Предыдущий',
-                                          callback_data=f'bouquet_presentation_menu;{new_num};prev'),
+        main_buttons = [InlineKeyboardButton(text='◀ Пред',
+                                             callback_data=f'bouquet_presentation_menu;{new_num};prev'),
                         select_button,
-                        types.InlineKeyboardButton(text='Следующий ▶',
-                                          callback_data=f'bouquet_presentation_menu;{new_num};next')]
+                        InlineKeyboardButton(text='След ▶',
+                                             callback_data=f'bouquet_presentation_menu;{new_num};next')]
         markup.add(*main_buttons)
     else:
         markup.add(select_button)
 
-    button = types.InlineKeyboardButton(text='Связаться с флористом',
-                                        callback_data=f'bouquet_params;notify_florist')
+    button = InlineKeyboardButton(text='Связаться с флористом',
+                                  callback_data=f'bouquet_params;notify_florist')
     markup.add(button)
 
     try:
@@ -285,11 +292,11 @@ def set_address(message):
     today = datetime.today()
     date_list = [today + timedelta(days=x) for x in range(1, 6)]
 
-    buttons = [types.InlineKeyboardButton(
+    buttons = [InlineKeyboardButton(
                     text=f'{date.strftime("%d.%m")}',
                     callback_data=f'order;set_delivery_date;{date.strftime("%d.%m.%Y")};'
                 ) for date in date_list]
-    markup = types.InlineKeyboardMarkup()
+    markup = InlineKeyboardMarkup()
 
     buttons = list(chunked(buttons, 3))
     for button_set in buttons:
@@ -304,11 +311,11 @@ def set_delivery_date(message, date_str):
     time = datetime.strptime('10.00', '%H.%M')
     time_list = [time + timedelta(hours=x) for x in range(9)]
 
-    buttons = [types.InlineKeyboardButton(
+    buttons = [InlineKeyboardButton(
                     text=f'{time.strftime("%H:%M")}',
                     callback_data=f'order;set_delivery_time;{time.strftime("%H:%M")};'
                 ) for time in time_list]
-    markup = types.InlineKeyboardMarkup()
+    markup = InlineKeyboardMarkup()
 
     buttons = list(chunked(buttons, 3))
     for button_set in buttons:
@@ -321,13 +328,13 @@ def set_delivery_time(message, date_str):
     time = datetime.strptime(date_str, "%H:%M")
     ORDERS_IN_PROCESS[client_id]['delivery_time'] = time
 
-    markup = types.InlineKeyboardMarkup()
-    buttons = [types.InlineKeyboardButton(text='Подтверждаю',
-                                          callback_data=f'order;create_order'),
-               types.InlineKeyboardButton(text='Изменить',
-                                          callback_data=f'order;ask_name'),
-               types.InlineKeyboardButton(text='Отмена',
-                                          callback_data=f'bouquet_params;main_menu')]
+    markup = InlineKeyboardMarkup()
+    buttons = [InlineKeyboardButton(text='Подтверждаю',
+                                    callback_data=f'order;create_order'),
+               InlineKeyboardButton(text='Изменить',
+                                    callback_data=f'order;ask_name'),
+               InlineKeyboardButton(text='Отмена',
+                                    callback_data=f'bouquet_params;main_menu')]
     markup.add(*buttons)
 
     message = get_description(ORDERS_IN_PROCESS[client_id], client_id)
@@ -348,11 +355,11 @@ def accept_order(client_chat_id):
 
 
 def offer_payment_types(message):
-    markup = types.InlineKeyboardMarkup()
-    buttons = [types.InlineKeyboardButton(text='Оплатить онлайн',
-                                          callback_data=f'order;pay_order'),
-               types.InlineKeyboardButton(text='При получении',
-                                          callback_data=f'order;courier_notified;False')]
+    markup = InlineKeyboardMarkup()
+    buttons = [InlineKeyboardButton(text='Оплатить онлайн',
+                                    callback_data=f'order;pay_order'),
+               InlineKeyboardButton(text='При получении',
+                                    callback_data=f'order;courier_notified;False')]
     markup.add(*buttons)
     bot.send_message(message.chat.id,
                      'Ваш заказ принят.\n' 
@@ -362,10 +369,10 @@ def offer_payment_types(message):
 
 def pay_order(message):
     bouquet = ORDERS_IN_PROCESS[message.chat.id]['chosen_bouquet']
-    markup = types.InlineKeyboardMarkup()
-    buttons = [types.InlineKeyboardButton(text=f'Оплатить {bouquet.price} руб.', pay=True),
-               types.InlineKeyboardButton(text='Отмена',
-                                          callback_data=f'order;offer_payment_types')]
+    markup = InlineKeyboardMarkup()
+    buttons = [InlineKeyboardButton(text=f'Оплатить {bouquet.price} руб.', pay=True),
+               InlineKeyboardButton(text='Отмена',
+                                    callback_data=f'order;offer_payment_types')]
     markup.add(*buttons)
 
     bot.send_invoice(chat_id=message.chat.id,
@@ -402,9 +409,9 @@ def courier_notified(message, is_paid):
     msg = get_courier_message(message, ORDERS_IN_PROCESS[message.chat.id], is_paid)
     bot.send_message(COURIERS_CHAT_ID, msg)
 
-    markup = types.InlineKeyboardMarkup()
-    button = types.InlineKeyboardButton(text='Главное меню',
-                                        callback_data=f'bouquet_params;main_menu')
+    markup = InlineKeyboardMarkup()
+    button = InlineKeyboardButton(text='Главное меню',
+                                  callback_data=f'bouquet_params;main_menu')
     # добавить сюда кнопку "Мои заказы", если будет такой раздел
     markup.add(button)
     filepath = os.path.join(STATIC_ROOT, 'thanks_for_order.jpg')
