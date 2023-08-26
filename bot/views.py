@@ -44,8 +44,12 @@ def make_price_list(bouquets):
     return approximate_prices
 
 
-def roundup(x):
+def roundup(x: int):
     return int(round(x / 1000) * 1000)
+
+
+def isTrue(param: str):
+    return True if param == 'True' else False
 
 
 def get_new_bouquet_num(last_num: int, direction, max_set_num: int):
@@ -78,6 +82,7 @@ def get_courier_message(message, order: dict, is_paid):
           f'ТГ ссылка: tg://user?id={сlient.client_id}\n' \
           f'Заказ № {order["order_id"]}\n' \
           f'Букет № {bouquet.id}: \"{bouquet}\"\n' \
+          f'Цена: {bouquet.price} руб.\n' \
           f'Адрес: {order["address"]}\n' \
           f'Дата доставки: {order["delivery_date"].strftime("%d.%m.%Y")}\n' \
           f'Время: {order["delivery_time"].strftime("%H:%M")}\n\n'

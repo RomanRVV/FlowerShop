@@ -10,9 +10,11 @@ from bot.views import (make_price_list,
                        get_new_bouquet_num, 
                        get_description,
                        get_florist_message, 
-                       get_courier_message)
+                       get_courier_message,
+                       isTrue)
 from more_itertools import chunked
 from datetime import datetime, timedelta
+from django.db.models import Q
 #import FlowerShop.settings
 from FlowerShop.settings import (TELEGRAM_TOKEN,
                                  PAYMENT_TOKEN,
@@ -27,7 +29,9 @@ ORDERS_IN_PROCESS = {}
 ORDERS_IN_PROCESS = {
   'id': {
     'cause': str,
-    'price': int,
+    'no_cause': bool
+    'price': int/str,
+    'no_price': bool
     'bouquets': QuerySet,
     --------------------
     'chosen_bouquet': Bouquet
@@ -74,18 +78,29 @@ def bouquet_params_menu(call):
 
     if callback_data[1] == 'main_menu':
         main_menu(call.message)
+
     if callback_data[1] == 'choose_cause':
         choose_cause(call.message)
+
     if callback_data[1] == 'choose_price':
+        no_cause = not bool(int(callback_data[3]))
         ORDERS_IN_PROCESS.update([(
             client_chat_id,
-            {'cause': callback_data[2]}
+            {'cause': callback_data[2],
+             'no_cause': no_cause}
         )])
-        choose_price(call.message, callback_data[2])
+        choose_price(call.message, callback_data[2], no_cause)
+
     if callback_data[1] == 'second_menu':
-        if not ORDERS_IN_PROCESS[client_chat_id].get('approx_price'):
-            ORDERS_IN_PROCESS[client_chat_id]['approx_price'] = int(callback_data[2])
+        if len(callback_data) >= 3:
+            if len(callback_data) == 3:
+                ORDERS_IN_PROCESS[client_chat_id]['approx_price'] = int(callback_data[2])
+                ORDERS_IN_PROCESS[client_chat_id]['no_price'] = False
+            else:
+                ORDERS_IN_PROCESS[client_chat_id]['approx_price'] = callback_data[2]
+                ORDERS_IN_PROCESS[client_chat_id]['no_price'] = True
         second_menu(call.message, client_chat_id)
+
     if callback_data[1] == 'notify_florist':
         notify_florist(call.message)
 
@@ -96,10 +111,20 @@ def choose_cause(message):
     buttons = [
         InlineKeyboardButton(
             text=f'{cause}', 
-            callback_data=f'bouquet_params;choose_price;{cause.name}'
+            callback_data=f'bouquet_params;choose_price;{cause.name};1'
         ) 
         for cause in causes
     ]
+    if len(buttons) > 1:
+        buttons.append(InlineKeyboardButton(
+            text='Другой повод', 
+            callback_data='bouquet_params;choose_price;Другой повод;0'
+        ))
+    buttons.append(InlineKeyboardButton(
+        text='Без повода', 
+        callback_data='bouquet_params;choose_price;Без повода;0'
+    ))
+
     for button in buttons:
         markup.add(button)
     bot.send_message(message.chat.id,
@@ -108,8 +133,10 @@ def choose_cause(message):
                      reply_markup=markup)
 
 
-def choose_price(message, cause):
-    cause_bouquets = Bouquet.objects.filter(events__name=cause)
+def choose_price(message, cause, no_cause):
+    cause_bouquets = (Bouquet.objects.all()
+                      if no_cause else
+                      Bouquet.objects.filter(events__name=cause))
     prices = make_price_list(cause_bouquets)
 
     markup = InlineKeyboardMarkup()
@@ -120,6 +147,21 @@ def choose_price(message, cause):
         )
         for price in prices
     ]
+
+    higher_price = prices[-1] + 1000
+    other_buttons = [
+        InlineKeyboardButton(
+            text=f'{higher_price}+ руб.', 
+            callback_data=f'bouquet_params;second_menu;{higher_price}+;0'
+        ),
+        InlineKeyboardButton(
+            text='Не важно', 
+            callback_data=f'bouquet_params;second_menu;Не важно;0;'
+        )
+    ]
+    for button in other_buttons:
+        buttons.append(button)
+
     markup.add(*buttons)
     bot.send_message(message.chat.id,
                      'На какую сумму рассчитываете?',
@@ -127,26 +169,36 @@ def choose_price(message, cause):
 
 
 def second_menu(message, client_chat_id):
-
     markup = InlineKeyboardMarkup()
-    buttons = [InlineKeyboardButton(text='Посмотреть букеты',
-                                    callback_data=f'bouquet_presentation_menu'),
-               InlineKeyboardButton(text='Связаться с флористом',
+    buttons = [InlineKeyboardButton(text='Связаться с флористом',
                                     callback_data=f'bouquet_params;notify_florist')]
-    markup.add(*buttons)
-
+    
     cause = ORDERS_IN_PROCESS[client_chat_id]['cause']
     approx_price = ORDERS_IN_PROCESS[client_chat_id]['approx_price']
-    bot.send_message(message.chat.id,
-                     f'Вы выбрали:\n повод: {cause}\n цена: {approx_price}\n'
-                     'Предпочитаете посмотреть готовые букеты или обратиться к флористу?',
-                     reply_markup=markup)
+    msg = f'Вы выбрали:\n повод: {cause}\n цена: {approx_price}\n\n'
+
+    higher_price = bool(type(approx_price) == str and approx_price.count('+'))
+    if higher_price:
+        msg += 'На данный момент букеты данной ценовой категории отсутствуют в наличии.\n' \
+               'Желаете обратиться к флористу для создания собственного букета?'
+        buttons.insert(0, InlineKeyboardButton(text='Отмена',
+                                               callback_data=f'bouquet_params;main_menu'))
+    else:
+        msg += 'Предпочитаете посмотреть готовые букеты или обратиться к флористу?'
+        buttons.insert(0, InlineKeyboardButton(text='Посмотреть букеты',
+                                               callback_data=f'bouquet_presentation_menu'))
+
+    markup.add(*buttons)
+    if higher_price:
+        markup.add(InlineKeyboardButton(text='Посмотреть прочие букеты',
+                                           callback_data=f'bouquet_presentation_menu'))
+    bot.send_message(message.chat.id, msg, reply_markup=markup)
 
 
 def notify_florist(message):
     markup = InlineKeyboardMarkup()
     button = InlineKeyboardButton(text='Отмена',
-                                  callback_data=f'bouquet_params;second_menu;')
+                                  callback_data=f'bouquet_params;second_menu')
     markup.add(button)
     msg = bot.send_message(message.chat.id,
                            'Укажите номер телефона, и наш флорист перезвонит вам в течение 20 минут',
@@ -160,11 +212,11 @@ def florist_notified(message):
     msg = get_florist_message(message, ORDERS_IN_PROCESS[message.chat.id])
     bot.send_message(FLORISTS_CHAT_ID, msg)
 
-    markup = types.InlineKeyboardMarkup()
-    buttons = [types.InlineKeyboardButton(text='Посмотреть букеты',
-                                          callback_data=f'bouquet_presentation_menu'),
-               types.InlineKeyboardButton(text='Главное меню',
-                                          callback_data=f'bouquet_params;main_menu')]
+    markup = InlineKeyboardMarkup()
+    buttons = [InlineKeyboardButton(text='Посмотреть букеты',
+                                    callback_data=f'bouquet_presentation_menu'),
+               InlineKeyboardButton(text='Главное меню',
+                                    callback_data=f'bouquet_params;main_menu')]
     markup.add(*buttons)
     bot.send_message(message.chat.id,
                      'Флорист скоро свяжется с вами. '
@@ -184,12 +236,7 @@ def bouquet_presentation_menu(call):
     is_first_call = (len(callback_data) == 1)
     
     if is_first_call:
-        bouquet_set['bouquets'] = Bouquet.objects.filter(
-            events__name=bouquet_set['cause'],
-            price__lte=int(bouquet_set['approx_price']) + 500,
-            price__gte=int(bouquet_set['approx_price']) - 500,
-            in_stock=True
-        ).order_by('id')
+        bouquet_set['bouquets'] = get_chosen_bouquets(bouquet_set)
         new_num = 0
         # проверить bouquet_set['bouquets'] на пустоту?
         # если пусто, начать сначала, с функции choose_cause?
@@ -216,11 +263,10 @@ def bouquet_presentation_menu(call):
         markup.add(select_button)
 
     cancel_button = InlineKeyboardButton(text='Отмена',
-                                         callback_data=f'bouquet_params;second_menu;')
+                                         callback_data=f'bouquet_params;main_menu;')
     florist_button = InlineKeyboardButton(text='Связаться с флористом',
                                           callback_data=f'bouquet_params;notify_florist')
     markup.add(*[cancel_button, florist_button])
-    #markup.add(florist_button)
 
     try:
         image = InputMediaPhoto(media=open(f'{bouquet.image}', 'rb'), caption=bouquet.get_message())
@@ -235,6 +281,33 @@ def bouquet_presentation_menu(call):
                        reply_markup=markup)
 
 
+def get_chosen_bouquets(bouquet_set: dict):
+    no_cause = bouquet_set['no_cause']
+    no_price = bouquet_set['no_price']
+
+    q_filter_cause = Q(events__name=bouquet_set['cause'])
+    q_filter_in_stock = Q(in_stock=True)
+
+    if no_price:
+        if no_cause:
+            q_filter = q_filter_in_stock
+        else:
+            q_filter = (q_filter_cause & q_filter_in_stock)
+    else:
+        q_filter_price = (Q(price__lte=bouquet_set['approx_price'] + 500) & 
+                          Q(price__gte=bouquet_set['approx_price'] - 500))
+        if no_cause:
+            q_filter = (q_filter_price & q_filter_in_stock)
+        else:
+            q_filter = (q_filter_cause & q_filter_price & q_filter_in_stock)
+
+    approx_price = bouquet_set['approx_price']
+    if(type(approx_price) == str and approx_price.count('+')):
+        q_filter = q_filter_in_stock
+
+    return Bouquet.objects.filter(q_filter).order_by('id')
+
+
 
 
 @bot.callback_query_handler(
@@ -246,21 +319,28 @@ def order_menu(call):
 
     if callback_data[1] == 'start_order':
         start_order(call.message, int(callback_data[2]))
+
     if callback_data[1] == 'ask_name':
         ask_name(call.message)
+
     if callback_data[1] == 'set_delivery_date':
         set_delivery_date(call.message, callback_data[2])
+
     if callback_data[1] == 'set_delivery_time':
         set_delivery_time(call.message, callback_data[2])
+
     if callback_data[1] == 'create_order':
         accept_order(client_chat_id)
         offer_payment_types(call.message)
+
     if callback_data[1] == 'offer_payment_types':
         offer_payment_types(call.message)
+
     if callback_data[1] == 'pay_order':
         pay_order(call.message)
+
     if callback_data[1] == 'courier_notified':
-        is_paid = True if callback_data[2] == 'True' else False
+        is_paid = isTrue(callback_data[2])
         courier_notified(call.message, is_paid)
 
 
@@ -278,7 +358,7 @@ def start_order(message, chosen_num):
 def ask_name(message):
     markup = InlineKeyboardMarkup()
     cancel_button = InlineKeyboardButton(text='Отмена',
-                                         callback_data=f'bouquet_params;second_menu;')
+                                         callback_data=f'bouquet_params;main_menu;')
     markup.add(cancel_button)
     msg = bot.send_message(message.chat.id, 
                            'На кого будет заказ?\nВведите имя',
@@ -293,7 +373,7 @@ def set_name(message):
 
     markup = InlineKeyboardMarkup()
     cancel_button = InlineKeyboardButton(text='Отмена',
-                                         callback_data=f'bouquet_params;second_menu;')
+                                         callback_data=f'bouquet_params;main_menu;')
     markup.add(cancel_button)
     msg = bot.send_message(message.chat.id, 
                            'Введите адрес доставки',
