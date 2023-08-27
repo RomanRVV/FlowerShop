@@ -65,7 +65,7 @@ def get_florist_message(message, order: dict):
 
     msg = '💐 Сообщение для флориста 💐\n\n' \
           f'Клиент № {сlient.id}\n' \
-          f'ТГ ссылка: tg://user_id={client_chat_id}\n' \
+          f'ТГ ссылка: tg://user?id={client_chat_id}\n' \
           f'Телефон: {message.text}\n' \
           'Предпочтения:\n' \
           f'   повод: {order["cause"]}\n' \
