@@ -11,6 +11,10 @@ https://docs.djangoproject.com/en/4.2/ref/settings/
 """
 
 from pathlib import Path
+from environs import Env
+
+env = Env()
+env.read_env()
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -26,6 +30,16 @@ SECRET_KEY = 'django-insecure-)j5y58)_659_p2pft_f6fw(17ea7gj(xm7$2fjra8l=lwb^q9q
 DEBUG = True
 
 ALLOWED_HOSTS = ['*']
+
+TELEGRAM_TOKEN = env("TELEGRAM_TOKEN")
+
+PAYMENT_TOKEN = env("PAYMENT_TOKEN")
+
+BOT_LINK = env("BOT_LINK")
+
+COURIERS_CHAT_ID = env("COURIERS_CHAT_ID")
+
+FLORISTS_CHAT_ID = env("FLORISTS_CHAT_ID")
 
 
 # Application definition
@@ -77,7 +91,8 @@ WSGI_APPLICATION = 'FlowerShop.wsgi.application'
 DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': BASE_DIR / 'db.sqlite3',
+        #'NAME': BASE_DIR / 'db.sqlite3',
+        'NAME': str(Path(BASE_DIR, 'db.sqlite3')),
     }
 }
 
@@ -117,6 +132,8 @@ USE_TZ = True
 # https://docs.djangoproject.com/en/4.2/howto/static-files/
 
 STATIC_URL = 'static/'
+
+STATIC_ROOT = 'static/'
 
 # Default primary key field type
 # https://docs.djangoproject.com/en/4.2/ref/settings/#default-auto-field
