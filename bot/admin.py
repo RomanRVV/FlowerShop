@@ -30,3 +30,11 @@ class ClientAdmin(admin.ModelAdmin):
 @admin.register(Flowers)
 class FlowersAdmin(admin.ModelAdmin):
     list_display = ['name']
+
+
+@admin.register(Link)
+class LinkAdmin(admin.ModelAdmin):
+    list_display = ('id', 'shorten_link', 'place_of_use', 'clicks_count')
+
+    def clicks_count(self, instance):
+        return instance.clicks

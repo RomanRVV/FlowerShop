@@ -41,6 +41,8 @@ COURIERS_CHAT_ID = env("COURIERS_CHAT_ID")
 
 FLORISTS_CHAT_ID = env("FLORISTS_CHAT_ID")
 
+BITLY_TOKEN = env('BITLY_TOKEN')
+
 
 # Application definition
 
