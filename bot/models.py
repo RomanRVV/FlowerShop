@@ -1,7 +1,7 @@
 from django.db import models
 from django.db.models import Max
 from FlowerShop.settings import BOT_LINK
-from bot.bitlink import is_bitlink, shorten_link, count_clicks
+from bot.bitlink import is_bitlink, shorten_link, count_clicks, delete_link
 
 
 class Client(models.Model):
@@ -114,9 +114,16 @@ class Link(models.Model):
         max_length=50,
         null=True, blank=True)
 
+
+    def delete(self, *args, **kwargs):
+        delete_link(self.shorten_link)
+        super().delete(*args, **kwargs)
+
+
     @property
     def clicks(self):
         return count_clicks(self.shorten_link)
+
 
     class Meta:
         verbose_name = 'Ссылка'
