@@ -31,13 +31,29 @@ def shorten_link(url, fragment=None):
     }
 
     try:
-        response = requests.post(api_method_url, json=payload, headers=headers)
+        response = requests.post(api_method_url, 
+                                 json=payload, 
+                                 headers=headers)
         response.raise_for_status()
         return response.json()['id']
     except requests.exceptions.HTTPError as err:
         return
     # id:   bit.ly/3nqqxey
     # link: https://bit.ly/3nqqxey
+
+
+def delete_link(bitlink):
+    parsed_bitlink = urlparse(bitlink)
+    bitlink = f'{parsed_bitlink.netloc}{parsed_bitlink.path}'
+    api_method_url = f"{API_URL}/bitlinks/{bitlink}"
+    headers = {
+        'Authorization': f'Bearer {BITLY_TOKEN}'
+    }
+    try:
+        response = requests.delete(api_method_url, headers=headers)
+        response.raise_for_status()
+    except requests.exceptions.HTTPError as err:
+        return
 
 
 def count_clicks(bitlink, period='month'):
@@ -51,6 +67,8 @@ def count_clicks(bitlink, period='month'):
         'unit': period
     }
 
-    response = requests.get(api_method_url, headers=headers, params=payload)
+    response = requests.get(api_method_url, 
+                            headers=headers, 
+                            params=payload)
     response.raise_for_status()
     return response.json()['total_clicks']
